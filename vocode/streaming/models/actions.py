@@ -28,7 +28,6 @@ class ActionInput(BaseModel, Generic[ParametersType]):
         arbitrary_types_allowed = True
 
 
-
 class FunctionFragment(BaseModel):
     name: str
     arguments: str

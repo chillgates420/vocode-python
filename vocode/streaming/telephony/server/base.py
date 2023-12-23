@@ -13,6 +13,8 @@ from vocode.streaming.synthesizer.factory import SynthesizerFactory
 from vocode.streaming.telephony.client.base_telephony_client import BaseTelephonyClient
 from vocode.streaming.telephony.client.twilio_client import TwilioClient
 from vocode.streaming.telephony.client.vonage_client import VonageClient
+import asyncio
+import threading
 from vocode.streaming.telephony.config_manager.base_config_manager import (
     BaseConfigManager,
 )
@@ -37,6 +39,8 @@ from vocode.streaming.transcriber.base_transcriber import BaseTranscriber
 from vocode.streaming.transcriber.factory import TranscriberFactory
 from vocode.streaming.utils import create_conversation_id
 from vocode.streaming.utils.events_manager import EventsManager
+
+# from vocode.streaming.transcriber.deepgram_transcriber import audio_queue
 
 
 class AbstractInboundCallConfig(BaseModel, abc.ABC):
@@ -99,16 +103,41 @@ class TelephonyServer:
         self.router.add_api_route("/events", self.events, methods=["GET", "POST"])
         self.logger.info(f"Set up events endpoint at https://{self.base_url}/events")
 
-        self.router.add_api_route("/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"])
-        self.logger.info(f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}")
- 
+        self.router.add_api_route(
+            "/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"]
+        )
+        self.logger.info(
+            f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}"
+        )
+
+        # self.router.add_api_route("/listen", self.listen_for_audio, methods=["GET", "POST"])
+        # self.logger.info(f"Set up listening endpoint at https://{self.base_url}/listen/{{conversation_id}}")
+
+        self.router.add_api_route("/listen", self.listen_for_audio, methods=["GET"])
+        self.logger.info(f"Set up listening endpoint at https://{self.base_url}/listen")
+
+    async def listen_for_audio(conversation_id: str):
+        async def audio_stream_generator():
+            while True:
+                audio_chunk = await audio_queue.get()
+                if audio_chunk.conversation_id == conversation_id:
+                    yield audio_chunk.data
+                # Optionally handle non-matching conversation IDs
+                # ...
+
+        return Response(content=audio_stream_generator(), media_type="audio/wav")
+
     def events(self, request: Request):
         return Response()
 
     async def recordings(self, request: Request, conversation_id: str):
         recording_url = (await request.json())["recording_url"]
         if self.events_manager is not None and recording_url is not None:
-            self.events_manager.publish_event(RecordingEvent(recording_url=recording_url, conversation_id=conversation_id))
+            self.events_manager.publish_event(
+                RecordingEvent(
+                    recording_url=recording_url, conversation_id=conversation_id
+                )
+            )
         return Response()
 
     def create_inbound_route(
@@ -156,7 +185,9 @@ class TelephonyServer:
             conversation_id = create_conversation_id()
             await self.config_manager.save_config(conversation_id, call_config)
             return VonageClient.create_call_ncco(
-                base_url=self.base_url, conversation_id=conversation_id, record=vonage_config.record
+                base_url=self.base_url,
+                conversation_id=conversation_id,
+                record=vonage_config.record,
             )
 
         if isinstance(inbound_call_config, TwilioInboundCallConfig):

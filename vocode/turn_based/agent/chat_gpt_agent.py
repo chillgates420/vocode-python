@@ -36,7 +36,9 @@ class ChatGPTAgent(BaseAgent):
                 HumanMessagePromptTemplate.from_template("{input}"),
             ]
         )
-        self.memory = memory if memory else ConversationBufferMemory(return_messages=True)
+        self.memory = (
+            memory if memory else ConversationBufferMemory(return_messages=True)
+        )
         if initial_message:
             self.memory.chat_memory.add_ai_message(initial_message)
         self.llm = ChatOpenAI(  # type: ignore

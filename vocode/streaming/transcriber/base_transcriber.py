@@ -14,6 +14,7 @@ from vocode.streaming.utils.worker import AsyncWorker, ThreadAsyncWorker
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
+
 class Transcription(BaseModel):
     message: str
     confidence: float
@@ -66,6 +67,9 @@ class BaseAsyncTranscriber(AbstractTranscriber[TranscriberConfigType], AsyncWork
         raise NotImplementedError
 
     def send_audio(self, chunk):
+        # PIPE THIS DATA TO WEBSERVER
+        # self.logger.debug(f"Sending audio to transcriber")
+
         if not self.is_muted:
             self.consume_nonblocking(chunk)
         else:

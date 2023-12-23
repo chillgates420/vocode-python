@@ -67,6 +67,9 @@ from vocode.streaming.utils.worker import (
     InterruptibleAgentResponseEvent,
     InterruptibleWorker,
 )
+import redis
+
+redis_client = redis.Redis(host="localhost", port=6379, db=0)
 
 OutputDeviceType = TypeVar("OutputDeviceType", bound=BaseOutputDevice)
 
@@ -641,6 +644,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 if started_event:
                     started_event.set()
             self.output_device.consume_nonblocking(chunk_result.chunk)
+            self.logger.debug(f"Sending synth audio to redis: {len(chunk_result.chunk)} bytes")
+            redis_client.publish(f"SynthAudio-audio", chunk_result.chunk)
             end_time = time.time()
             await asyncio.sleep(
                 max(
@@ -673,6 +678,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
     async def terminate(self):
         self.mark_terminated()
         self.broadcast_interrupt()
+        # Remove "audio" from "active_calls" set in redis
+        self.logger.debug("Removed 'audio' from 'active_calls' set in redis")
+        redis_client.srem("active_calls", "audio")
         self.events_manager.publish_event(
             TranscriptCompleteEvent(conversation_id=self.id, transcript=self.transcript)
         )

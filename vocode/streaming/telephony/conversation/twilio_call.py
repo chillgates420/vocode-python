@@ -2,22 +2,15 @@ import asyncio
 from fastapi import WebSocket
 import base64
 from enum import Enum
+import redis
 import json
 import logging
-from typing import Optional
-import sounddevice as sd
-import numpy as np
-import audioop
-import threading
 import websockets
-import asyncio
-import base64
-
+from typing import Optional
 from vocode import getenv
 from vocode.streaming.agent.factory import AgentFactory
 from vocode.streaming.models.agent import AgentConfig
 from vocode.streaming.models.events import PhoneCallConnectedEvent
-
 
 from vocode.streaming.models.telephony import TwilioConfig
 from vocode.streaming.output_device.twilio_output_device import TwilioOutputDevice
@@ -37,6 +30,8 @@ from vocode.streaming.transcriber.factory import TranscriberFactory
 from vocode.streaming.utils.events_manager import EventsManager
 from vocode.streaming.utils.state_manager import TwilioCallStateManager
 
+redis_client = redis.Redis(host="localhost", port=6379, db=0)
+redis_client.sadd("active_calls", "audio")
 
 class PhoneCallWebsocketAction(Enum):
     CLOSE_WEBSOCKET = 1
@@ -94,6 +89,10 @@ class TwilioCall(Call[TwilioOutputDevice]):
 
     async def attach_ws_and_start(self, ws: WebSocket):
         super().attach_ws(ws)
+        # create a redis set called "active_calls" to track active calls, with an initial value of "audio"
+        redis_client.sadd("active_calls", self.id)
+        redis_client.sadd("active_calls", "audio")
+
 
         twilio_call_ref = self.telephony_client.twilio_client.calls(self.twilio_sid)
         twilio_call = twilio_call_ref.fetch()
@@ -161,11 +160,10 @@ class TwilioCall(Call[TwilioOutputDevice]):
                 self.logger.debug(f"Filling {bytes_to_fill} bytes of silence")
                 # NOTE: 0xff is silence for mulaw audio
                 self.receive_audio(b"\xff" * bytes_to_fill)
-                await self.send_audio_to_websocket(chunk)
             self.latest_media_timestamp = int(media["timestamp"])
             self.receive_audio(chunk)
-            await self.send_audio_to_websocket(chunk)
-            
+
+
         elif data["event"] == "stop":
             self.logger.debug(f"Media WS: Received event 'stop': {message}")
             self.logger.debug("Stopping...")
@@ -176,13 +174,13 @@ class TwilioCall(Call[TwilioOutputDevice]):
         super().mark_terminated()
         if self.active is False:
             asyncio.create_task(self.telephony_client.end_call(self.twilio_sid))
-    
-    async def send_audio_to_websocket(self,audio_chunk):
-        uri = "ws://localhost:8000/audio"  # Replace with your WebSocket URI
-        async with websockets.connect(uri) as websocket:
-            await websocket.send(base64.b64encode(audio_chunk))
 
-
-        # If you need to wait until the audio finishes playing, uncomment the next line
-        # await asyncio.sleep(len(np_audio) / float(sd.default.samplerate))
-
+    async def send_audio_to_websocket(self, audio_chunk):
+        try:
+            uri = "ws://localhost:8000/audio"  # Replace with your WebSocket URI
+            self.logger.debug("Sending audio to websocket")
+            async with websockets.connect(uri) as websocket:
+                await websocket.send(base64.b64encode(audio_chunk))
+        except Exception as e:
+            self.logger.error(f"Error sending audio to websocket: {e}")
+            raise e

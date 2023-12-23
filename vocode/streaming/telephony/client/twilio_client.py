@@ -58,7 +58,7 @@ class TwilioClient(BaseTelephonyClient):
         self,
         to_phone: str,
         from_phone: str,
-        mobile_only: bool = True,
+        mobile_only: bool = False,
     ):
         if len(to_phone) < 8:
             raise ValueError("Invalid 'to' phone")

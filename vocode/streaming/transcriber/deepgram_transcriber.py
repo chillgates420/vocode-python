@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import redis
 from typing import Optional
 import websockets
 from websockets.client import WebSocketClientProtocol
@@ -21,7 +22,8 @@ from vocode.streaming.models.transcriber import (
     TimeEndpointingConfig,
 )
 from vocode.streaming.models.audio_encoding import AudioEncoding
-
+import sounddevice as sd
+import numpy as np
 
 PUNCTUATION_TERMINATORS = [".", "!", "?"]
 NUM_RESTARTS = 5
@@ -43,6 +45,22 @@ duration_hist = meter.create_histogram(
     name="transcriber.deepgram.duration",
     unit="seconds",
 )
+redis_client = redis.Redis(host="localhost", port=6379, db=0)
+
+
+def play_audio_chunk(chunk, samplerate=16000):
+    try:
+        # Convert MuLaw encoded audio to Linear PCM
+        linear_pcm_chunk = audioop.ulaw2lin(chunk, 2)
+
+        # Convert the linear PCM chunk to a NumPy array
+        numpy_chunk = np.frombuffer(linear_pcm_chunk, dtype=np.int16)
+
+        # Play the audio
+        sd.play(numpy_chunk, samplerate)
+        sd.wait()  # Wait for playback to finish
+    except Exception as e:
+        print(f"Error during playback: {e}")
 
 
 class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
@@ -73,19 +91,23 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             )
 
     def send_audio(self, chunk):
-        if (
-            self.transcriber_config.downsampling
-            and self.transcriber_config.audio_encoding == AudioEncoding.LINEAR16
-        ):
-            chunk, _ = audioop.ratecv(
-                chunk,
-                2,
-                1,
-                self.transcriber_config.sampling_rate
-                * self.transcriber_config.downsampling,
-                self.transcriber_config.sampling_rate,
-                None,
-            )
+        # Determine the audio format and process accordingly
+
+        if self.transcriber_config.audio_encoding == AudioEncoding.LINEAR16:
+            if self.transcriber_config.downsampling:
+                chunk, _ = audioop.ratecv(
+                    chunk,
+                    2,  # Assuming the audio is 16-bit samples (2 bytes per sample)
+                    1,  # Assuming mono audio. Change this if it's stereo.
+                    self.transcriber_config.sampling_rate
+                    * self.transcriber_config.downsampling,
+                    self.transcriber_config.sampling_rate,
+                    None,
+                )
+            chunk = np.frombuffer(chunk, dtype=np.int16)
+
+        redis_client.publish(f"PersonAudio-audio", chunk)
+
         super().send_audio(chunk)
 
     def terminate(self):
