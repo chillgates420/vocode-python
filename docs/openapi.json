@@ -1744,6 +1744,11 @@
             "type": "string",
             "title": "Openai Model Name Override"
           },
+          "ask_if_human_present_on_idle": {
+            "type": "boolean",
+            "title": "Ask If Human Present On Idle",
+            "default": false
+          },
           "openai_account_connection": {
             "$ref": "#/components/schemas/OpenAIAccountConnection"
           },
@@ -1868,6 +1873,11 @@
           "openai_model_name_override": {
             "type": "string",
             "title": "Openai Model Name Override"
+          },
+          "ask_if_human_present_on_idle": {
+            "type": "boolean",
+            "title": "Ask If Human Present On Idle",
+            "default": false
           },
           "openai_account_connection": {
             "anyOf": [
@@ -2027,6 +2037,13 @@
               { "$ref": "#/components/schemas/Undefined" }
             ],
             "title": "Openai Model Name Override"
+          },
+          "ask_if_human_present_on_idle": {
+            "anyOf": [
+              { "type": "boolean" },
+              { "$ref": "#/components/schemas/Undefined" }
+            ],
+            "title": "Ask If Human Present On Idle"
           },
           "openai_account_connection": {
             "anyOf": [
@@ -2345,6 +2362,11 @@
             "type": "string",
             "title": "Openai Model Name Override"
           },
+          "ask_if_human_present_on_idle": {
+            "type": "boolean",
+            "title": "Ask If Human Present On Idle",
+            "default": false
+          },
           "openai_account_connection": {
             "anyOf": [
               { "$ref": "#/components/schemas/OpenAIAccountConnection" },
@@ -2634,7 +2656,19 @@
       },
       "Language": {
         "type": "string",
-        "enum": ["en", "es", "de"],
+        "enum": [
+          "en",
+          "es",
+          "de",
+          "hi",
+          "pt",
+          "fr",
+          "nl",
+          "id",
+          "it",
+          "ja",
+          "ko"
+        ],
         "title": "Language",
         "description": "An enumeration."
       },
@@ -2721,6 +2755,11 @@
           "openai_model_name_override": {
             "type": "string",
             "title": "Openai Model Name Override"
+          },
+          "ask_if_human_present_on_idle": {
+            "type": "boolean",
+            "title": "Ask If Human Present On Idle",
+            "default": false
           },
           "openai_account_connection": {
             "anyOf": [
@@ -3089,7 +3128,13 @@
             "title": "Version",
             "default": "2"
           },
-          "speed": { "type": "number", "title": "Speed" }
+          "speed": { "type": "number", "title": "Speed" },
+          "quality": {
+            "type": "string",
+            "enum": ["faster", "draft", "low", "medium", "high", "premium"],
+            "title": "Quality"
+          },
+          "temperature": { "type": "number", "title": "Temperature" }
         },
         "type": "object",
         "required": ["id", "user_id", "type", "voice_id"],
@@ -3111,7 +3156,13 @@
             "title": "Version",
             "default": "2"
           },
-          "speed": { "type": "number", "title": "Speed" }
+          "speed": { "type": "number", "title": "Speed" },
+          "quality": {
+            "type": "string",
+            "enum": ["faster", "draft", "low", "medium", "high", "premium"],
+            "title": "Quality"
+          },
+          "temperature": { "type": "number", "title": "Temperature" }
         },
         "type": "object",
         "required": ["type", "voice_id"],
@@ -3158,6 +3209,23 @@
               { "$ref": "#/components/schemas/Undefined" }
             ],
             "title": "Speed"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["faster", "draft", "low", "medium", "high", "premium"]
+              },
+              { "$ref": "#/components/schemas/Undefined" }
+            ],
+            "title": "Quality"
+          },
+          "temperature": {
+            "anyOf": [
+              { "type": "number" },
+              { "$ref": "#/components/schemas/Undefined" }
+            ],
+            "title": "Temperature"
           }
         },
         "type": "object",
